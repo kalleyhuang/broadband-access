@@ -1,0 +1,62 @@
+---
+title: "Broadband access in lower education and the achievement gap"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r libraries, include = FALSE}
+library(tidyverse)
+```
+
+```{r data}
+# upload & clean data via https://data-nconemap.opendata.arcgis.com/datasets/broadbandindices-bytract-allyears
+# all variables are percentages unless otherwise noted in names
+broadband <- read.csv("NC_Broadband_Indices.csv")
+broadband <- broadband %>% 
+  rename(tract = NAMELSAD, fips = FIPS, county = County_Name, `25/3` = Percent_Pop__25_3, 
+         `100/20` = Percent_Pop__100_20, fiber = Percent_Pop__Fiber, upload_download_ratio = Up_Down_Ratio, 
+         household_density = Hhld__Density, homes_after_2010 = Percent_Age_Home, 
+         no_providers = Percent_Pop__No_Prov_, dsl = Percent_Pop__DSL_Only, availability_index = Availability, 
+         subscription = Percent_Bbnd__Sub, `18-34` = Percent_Ages_18_34, bachelors = Percent_Bach_, 
+         household_children = Percent_Hhlds__Children, wfh = Percent_Work_from_home,
+         `65+` = Percent_Ages_65_and_over, no_internet = Percent_No_Int__Access, 
+         no_computer = Percent_No_Comp__Devices, poverty = Percent_Poverty, disability = Percent_Disability, 
+         limited_english = Percent_Lim__English, adoption_index = Adoption, year = YEAR) %>% 
+  select(3, 9:32)
+```
+
+```{r summary_statistics}
+# check missingness
+broadband %>% 
+  count(is.na(availability_index))
+
+broadband %>% 
+  count(is.na(adoption_index))
+
+broadband %>% 
+  count(is.na(no_internet))
+
+broadband %>% 
+  count(is.na(no_computer))
+
+broadband %>% 
+  filter(is.na(availability_index) | is.na(adoption_index) | is.na(no_internet) | is.na(no_computer))
+
+# calculate summary statistics
+broadband %>% 
+  filter(!is.na(availability_index) & !is.na(adoption_index) & !is.na(no_internet) & !is.na(no_computer)) %>% 
+  summarize(median_availability = median(availability_index), mean_availability = mean(availability_index),
+            median_adoption = median(adoption_index), mean_adoption = mean(adoption_index),
+            median_no_internet = median(no_internet), mean_no_internet = mean(no_internet),
+            median_no_computer = median(no_internet), mean_no_computer = mean(no_internet))
+
+# by county & year
+broadband %>% 
+  group_by(county, year) %>% 
+  filter(!is.na(availability_index) & !is.na(adoption_index) & !is.na(no_internet) & !is.na(no_computer)) %>% 
+  summarize(mean_availability = mean(availability_index), mean_adoption = mean(adoption_index),
+            mean_no_internet = mean(no_internet), mean_no_computer = mean(no_internet))
+```
