@@ -13,7 +13,6 @@ library(tidyverse)
 
 ```{r data}
 # upload & clean data via https://data-nconemap.opendata.arcgis.com/datasets/broadbandindices-bytract-allyears
-# upload data via ACS
 # all variables are percentages unless otherwise noted in names
 broadband <- read.csv("NC_Broadband_Indices.csv")
 broadband <- broadband %>% 
@@ -28,9 +27,17 @@ broadband <- broadband %>%
          limited_english = Percent_Lim__English, adoption_index = Adoption, year = YEAR) %>% 
   select(3, 9:32)
 
-race <- read.csv("NC_ACS_Race.csv")
+# upload race data via American Community Survey
+race <- read.csv("NC_Race.csv")
 broadband <- inner_join(broadband, race) %>% 
   rename(pacific_islander = pacific.islander)
+
+# upload urban/rural data via U.S. Census Bureau
+urban_rural <- read.csv("NC_Urban_Rural.csv")
+broadband <- inner_join(broadband, urban_rural)
+broadband$pct_urban <- as.double(broadband$pct_urban)
+broadband$pct_rural <- as.double(broadband$pct_rural)
+
 ```
 
 ```{r summary_statistics}
@@ -68,16 +75,16 @@ broadband %>%
 
 ```{r initial_viz}
 ggplot(data = broadband, mapping = aes(x = poverty, y = availability_index)) +
-  geom_point(alpha = 0.25)
+  geom_point(mapping = aes(color = pct_urban), alpha = 0.25)
 
 ggplot(data = broadband, mapping = aes(x = poverty, y = adoption_index)) +
-  geom_point(alpha = 0.25)
+  geom_point(mapping = aes(color = pct_urban), alpha = 0.25)
 
 ggplot(data = broadband, mapping = aes(x = poverty, y = no_internet)) +
-  geom_point(alpha = 0.25)
+  geom_point(mapping = aes(color = pct_urban), alpha = 0.25)
 
 ggplot(data = broadband, mapping = aes(x = poverty, y = no_computer)) +
-  geom_point(alpha = 0.25)
+  geom_point(mapping = aes(color = pct_urban), alpha = 0.25)
 
 ggplot(data = broadband, mapping = aes(x = household_with_children, y = availability_index)) +
   geom_point(alpha = 0.25)
