@@ -13,6 +13,7 @@ library(tidyverse)
 
 ```{r data}
 # upload & clean data via https://data-nconemap.opendata.arcgis.com/datasets/broadbandindices-bytract-allyears
+# upload data via ACS
 # all variables are percentages unless otherwise noted in names
 broadband <- read.csv("NC_Broadband_Indices.csv")
 broadband <- broadband %>% 
@@ -21,11 +22,15 @@ broadband <- broadband %>%
          household_density = Hhld__Density, homes_after_2010 = Percent_Age_Home, 
          no_providers = Percent_Pop__No_Prov_, dsl = Percent_Pop__DSL_Only, availability_index = Availability, 
          subscription = Percent_Bbnd__Sub, `18-34` = Percent_Ages_18_34, bachelors = Percent_Bach_, 
-         household_children = Percent_Hhlds__Children, wfh = Percent_Work_from_home,
+         household_with_children = Percent_Hhlds__Children, wfh = Percent_Work_from_home,
          `65+` = Percent_Ages_65_and_over, no_internet = Percent_No_Int__Access, 
          no_computer = Percent_No_Comp__Devices, poverty = Percent_Poverty, disability = Percent_Disability, 
          limited_english = Percent_Lim__English, adoption_index = Adoption, year = YEAR) %>% 
   select(3, 9:32)
+
+race <- read.csv("NC_ACS_Race.csv")
+broadband <- inner_join(broadband, race) %>% 
+  rename(pacific_islander = pacific.islander)
 ```
 
 ```{r summary_statistics}
@@ -59,4 +64,50 @@ broadband %>%
   filter(!is.na(availability_index) & !is.na(adoption_index) & !is.na(no_internet) & !is.na(no_computer)) %>% 
   summarize(mean_availability = mean(availability_index), mean_adoption = mean(adoption_index),
             mean_no_internet = mean(no_internet), mean_no_computer = mean(no_internet))
+```
+
+```{r initial_viz}
+ggplot(data = broadband, mapping = aes(x = poverty, y = availability_index)) +
+  geom_point(alpha = 0.25)
+
+ggplot(data = broadband, mapping = aes(x = poverty, y = adoption_index)) +
+  geom_point(alpha = 0.25)
+
+ggplot(data = broadband, mapping = aes(x = poverty, y = no_internet)) +
+  geom_point(alpha = 0.25)
+
+ggplot(data = broadband, mapping = aes(x = poverty, y = no_computer)) +
+  geom_point(alpha = 0.25)
+
+ggplot(data = broadband, mapping = aes(x = household_with_children, y = availability_index)) +
+  geom_point(alpha = 0.25)
+
+ggplot(data = broadband, mapping = aes(x = household_with_children, y = adoption_index)) +
+  geom_point(alpha = 0.25)
+
+ggplot(data = broadband, mapping = aes(x = household_with_children, y = no_internet)) +
+  geom_point(alpha = 0.25)
+
+ggplot(data = broadband, mapping = aes(x = household_with_children, y = no_computer)) +
+  geom_point(alpha = 0.25)
+
+broadband %>% 
+  mutate(pct_black = black / total) %>% 
+  ggplot(data = ., mapping = aes(x = pct_black, y = availability_index)) +
+  geom_point(alpha = 0.25)
+
+broadband %>% 
+  mutate(pct_black = black / total) %>% 
+  ggplot(data = ., mapping = aes(x = pct_black, y = adoption_index)) +
+  geom_point(alpha = 0.25)
+
+broadband %>% 
+  mutate(pct_black = black / total) %>% 
+  ggplot(data = ., mapping = aes(x = pct_black, y = no_internet)) +
+  geom_point(alpha = 0.25)
+
+broadband %>% 
+  mutate(pct_black = black / total) %>% 
+  ggplot(data = ., mapping = aes(x = pct_black, y = no_computer)) +
+  geom_point(alpha = 0.25)
 ```
