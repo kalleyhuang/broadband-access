@@ -38,6 +38,12 @@ broadband <- inner_join(broadband, urban_rural)
 broadband$pct_urban <- as.double(broadband$pct_urban)
 broadband$pct_rural <- as.double(broadband$pct_rural)
 
+# upload & clean data via https://sites.google.com/dpi.nc.gov/dlmi/state-dlmi-reports/school-level-reports?authuser=0
+home_internet <- read.csv("NC_Students_with_Internet_Access_at_Home.csv")
+home_internet <- home_internet %>% 
+  rename(number = School.Number, name = School.Name1, lea = LEA.Name, 
+         access = `X223.....of.Students.with.Home.Internet.Access`)
+home_internet$access[home_internet$access == ""] <- NA
 ```
 
 ```{r summary_statistics}
@@ -71,6 +77,14 @@ broadband %>%
   filter(!is.na(availability_index) & !is.na(adoption_index) & !is.na(no_internet) & !is.na(no_computer)) %>% 
   summarize(mean_availability = mean(availability_index), mean_adoption = mean(adoption_index),
             mean_no_internet = mean(no_internet), mean_no_computer = mean(no_internet))
+
+home_internet %>% 
+  count(access) %>% 
+  mutate(prop = n / sum(n))
+
+home_internet %>% 
+  group_by(lea) %>% 
+  count(access)
 ```
 
 ```{r initial_viz}
