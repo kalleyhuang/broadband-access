@@ -44,6 +44,15 @@ home_internet <- home_internet %>%
   rename(number = School.Number, name = School.Name1, lea = LEA.Name, 
          access = `X223.....of.Students.with.Home.Internet.Access`)
 home_internet$access[home_internet$access == ""] <- NA
+
+# shared, for 2019-2020
+dlmi <- read.csv("NC_DLMI.csv")
+dlmi <- dlmi %>% 
+  rename(region = SBE.Region, psu = PSUCODE, number = SCHOOL.CODE, name = SCHOOL.NAME, 
+         access = X2019.20...of.Students.with.Home.Internet.Access)
+dlmi$access <- as.integer(dlmi$access)
+dlmi$region[dlmi$region == ""] <- NA
+dlmi$region[dlmi$region == "#N/A"] <- NA
 ```
 
 ```{r summary_statistics}
@@ -85,6 +94,10 @@ home_internet %>%
 home_internet %>% 
   group_by(lea) %>% 
   count(access)
+
+dlmi %>% 
+  group_by(region) %>% 
+  summarize(median = median(access, na.rm = TRUE))
 ```
 
 ```{r initial_viz}
@@ -130,5 +143,8 @@ broadband %>%
 broadband %>% 
   mutate(pct_black = black / total) %>% 
   ggplot(data = ., mapping = aes(x = pct_black, y = no_computer)) +
+  geom_point(alpha = 0.25)
+
+ggplot(data = dlmi, mapping = aes(x = region, y = access)) +
   geom_point(alpha = 0.25)
 ```
