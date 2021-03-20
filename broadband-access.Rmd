@@ -39,20 +39,27 @@ broadband$pct_urban <- as.double(broadband$pct_urban)
 broadband$pct_rural <- as.double(broadband$pct_rural)
 
 # upload & clean data via https://sites.google.com/dpi.nc.gov/dlmi/state-dlmi-reports/school-level-reports?authuser=0
+# for 2018-2019
 home_internet <- read.csv("NC_Students_with_Internet_Access_at_Home.csv")
 home_internet <- home_internet %>% 
-  rename(number = School.Number, name = School.Name1, lea = LEA.Name, 
+  rename(district = LEA.Name, number = School.Number, name = School.Name1, 
          access = `X223.....of.Students.with.Home.Internet.Access`)
 home_internet$access[home_internet$access == ""] <- NA
 
 # shared, for 2019-2020
 dlmi <- read.csv("NC_DLMI.csv")
 dlmi <- dlmi %>% 
-  rename(region = SBE.Region, psu = PSUCODE, number = SCHOOL.CODE, name = SCHOOL.NAME, 
+  rename(region = SBE.Region, district = PSUCODE, number = SCHOOL.CODE, name = SCHOOL.NAME, 
          access = X2019.20...of.Students.with.Home.Internet.Access)
+dlmi$district <- as.integer(dlmi$district)
+dlmi$number <- as.integer(dlmi$number)
 dlmi$access <- as.integer(dlmi$access)
-dlmi$region[dlmi$region == ""] <- NA
-dlmi$region[dlmi$region == "#N/A"] <- NA
+
+# what are the places that have seen the biggest change across years? what has that meant for the school district?
+# peer-reviewed academic research on this -> has anybody already developed a methodology on impact of access?
+# have grants trickled down to the school? in addition to funding from legislature
+
+# N&O, EdNC
 ```
 
 ```{r summary_statistics}
@@ -96,8 +103,8 @@ home_internet %>%
   count(access)
 
 dlmi %>% 
-  group_by(region) %>% 
-  summarize(median = median(access, na.rm = TRUE))
+  group_by(district) %>% 
+  summarize(mean = mean(access, na.rm = TRUE), median = median(access, na.rm = TRUE))
 ```
 
 ```{r initial_viz}
