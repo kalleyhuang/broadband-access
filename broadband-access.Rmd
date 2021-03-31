@@ -28,38 +28,63 @@ broadband <- broadband %>%
   select(3, 9:32)
 
 # upload race data via American Community Survey
-race <- read.csv("NC_Race.csv")
-broadband <- inner_join(broadband, race) %>% 
+nc_race <- read.csv("NC_Race.csv")
+broadband <- inner_join(broadband, nc_race) %>% 
   rename(pacific_islander = pacific.islander)
 
 # upload urban/rural data via U.S. Census Bureau
-urban_rural <- read.csv("NC_Urban_Rural.csv")
-broadband <- inner_join(broadband, urban_rural)
-broadband$pct_urban <- as.double(broadband$pct_urban)
-broadband$pct_rural <- as.double(broadband$pct_rural)
+nc_urban_rural <- read.csv("NC_Urban_Rural.csv")
+broadband <- inner_join(broadband, nc_urban_rural)
+broadband$pct_urban <- as.numeric(broadband$pct_urban)
+broadband$pct_rural <- as.numeric(broadband$pct_rural)
 
-# upload & clean data via https://sites.google.com/dpi.nc.gov/dlmi/state-dlmi-reports/school-level-reports?authuser=0
-# for 2018-2019
-home_internet <- read.csv("NC_Students_with_Internet_Access_at_Home.csv")
-home_internet <- home_internet %>% 
-  rename(district = LEA.Name, number = School.Number, name = School.Name1, 
-         access = `X223.....of.Students.with.Home.Internet.Access`)
-home_internet$access[home_internet$access == ""] <- NA
-
-# shared, for 2019-2020
-dlmi <- read.csv("NC_DLMI.csv")
+# upload & clean data via https://docs.google.com/spreadsheets/d/1OUny4n_4ssCkCJDtFuHFWJ7jJkO1DfhbERl5_O1oDs0/edit#gid=1261416180
+dlmi <- read.csv("NC_Students_with_Internet_Access_at_Home.csv")
 dlmi <- dlmi %>% 
-  rename(region = SBE.Region, district = PSUCODE, number = SCHOOL.CODE, name = SCHOOL.NAME, 
-         access = X2019.20...of.Students.with.Home.Internet.Access)
-dlmi$district <- as.integer(dlmi$district)
-dlmi$number <- as.integer(dlmi$number)
-dlmi$access <- as.integer(dlmi$access)
+  mutate(Fiscal.Year = as.numeric(substring(Fiscal.Year, 1, 4))) %>% 
+  rename(year = Fiscal.Year, number = School.Code, name = School.Name, level = SchoolLevel,
+         access = X223.....of.Students.with.Home.Internet.Access) %>% 
+  select(-Average.DailyMembershipRange, -EconomicallyDisadvantagedRange)
+dlmi$access[dlmi$access == "-"] <- NA
+dlmi$level[dlmi$level == "-"] <- NA
+dlmi <- dlmi %>% 
+  arrange(name, year)
 
-# what are the places that have seen the biggest change across years? what has that meant for the school district?
-# peer-reviewed academic research on this -> has anybody already developed a methodology on impact of access?
-# have grants trickled down to the school? in addition to funding from legislature
+dlmi_2019 <- dlmi %>% 
+  filter(year == 2019) %>% 
+  filter(!is.na(as.numeric(number)))
 
-# N&O, EdNC
+dlmi_range_2015 <- dlmi %>% 
+  filter(year != 2019)
+
+dlmi_range_2019 <- dlmi %>% 
+  filter(year == 2019) %>% 
+  mutate(access = as.numeric(access)) %>% 
+  mutate(access = case_when(access >= 0 & access <= 25 ~ "0-25", access > 25 & access <= 50 ~ "26-50",
+                            access > 50 & access <= 75 ~ "51-75", access > 75 & access <= 100 ~ "76-100"))
+
+dlmi <- rbind(dlmi_range_2015, dlmi_range_2019) %>% 
+  arrange(name, year)
+
+# upload & clean data via http://apps.schools.nc.gov/ords/f?p=145:221:::NO:::
+ncdpi_race <- read.csv("NCDPI_Race.csv")
+ncdpi_race <- ncdpi_race %>% 
+  mutate(LEA = as.character(LEA), School = as.character(School))
+ncdpi_race$LEA[as.numeric(ncdpi_race$LEA) < 100] <- paste0("0", ncdpi_race$LEA)
+ncdpi_race <- ncdpi_race %>% 
+  mutate(number = paste0(LEA, School)) %>%
+  rename(year = Year, district = X____LEA.Name____, name = X___School.Name___,
+         indigenous_m = Indian.Male, indigenous_f = Indian.Female, 
+         asian_m = Asian.Male, asian_f = Asian.Female,
+         hispanic_m = Hispanic.Male, hispanic_f = Hispanic.Female,
+         black_m = Black.Male, black_f = Black.Female,
+         white_m = White.Male, white_f = White.Female,
+         pi_m = Pacific.Island.Male, pi_f = Pacific.Island.Female,
+         bi_m = Two.or..More.Male, bi_f = Two.or..More.Female, total = Total) %>% 
+  select(-LEA, -School)
+
+dlmi_2019 <- inner_join(dlmi_2019, ncdpi_race) %>% 
+  mutate(access = as.numeric(access), total = as.numeric(gsub(",", "", total)))
 ```
 
 ```{r summary_statistics}
@@ -87,24 +112,22 @@ broadband %>%
             median_no_internet = median(no_internet), mean_no_internet = mean(no_internet),
             median_no_computer = median(no_internet), mean_no_computer = mean(no_internet))
 
-# by county & year
+# availability & adoption by county & year
 broadband %>% 
   group_by(county, year) %>% 
   filter(!is.na(availability_index) & !is.na(adoption_index) & !is.na(no_internet) & !is.na(no_computer)) %>% 
   summarize(mean_availability = mean(availability_index), mean_adoption = mean(adoption_index),
             mean_no_internet = mean(no_internet), mean_no_computer = mean(no_internet))
 
-home_internet %>% 
-  count(access) %>% 
-  mutate(prop = n / sum(n))
+# identify schools without observations for all five years
+dlmi_inc_schools <- dlmi %>% 
+  count(name) %>% 
+  filter(n != 5)
 
-home_internet %>% 
-  group_by(lea) %>% 
-  count(access)
-
+# access by year
 dlmi %>% 
-  group_by(district) %>% 
-  summarize(mean = mean(access, na.rm = TRUE), median = median(access, na.rm = TRUE))
+  filter(!name %in% dlmi_inc_schools$name & !is.na(access)) %>% 
+  count(year, access)
 ```
 
 ```{r initial_viz}
@@ -152,6 +175,22 @@ broadband %>%
   ggplot(data = ., mapping = aes(x = pct_black, y = no_computer)) +
   geom_point(alpha = 0.25)
 
-ggplot(data = dlmi, mapping = aes(x = region, y = access)) +
+# number of schools in each bucket from 2015 to 2019
+dlmi %>% 
+  filter(!name %in% dlmi_inc_schools$name) %>% 
+  count(year, access) %>% 
+  filter(!is.na(access)) %>% 
+  ggplot(data = ., mapping = aes(x = year, y = n, fill = access)) +
+  geom_bar(position = "dodge", stat = "identity")
+
+dlmi_2019 %>% 
+  mutate(pct_black = (black_m + black_f) / total) %>% 
+  ggplot(data = ., mapping = aes(x = pct_black, y = access)) +
   geom_point(alpha = 0.25)
+
+# in 2019-2020 school year, what is the relationship b/w broadband access & achievement?
+# which schools have the lowest percentage of broadband access?
+# what are the places that have seen the biggest change across years? what has that meant for the school district?
+# peer-reviewed academic research on this -> has anybody already developed a methodology on impact of access?
+# have grants trickled down to the school? in addition to funding from legislature
 ```
