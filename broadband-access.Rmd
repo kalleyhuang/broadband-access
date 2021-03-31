@@ -12,7 +12,7 @@ library(tidyverse)
 ```
 
 ```{r data}
-# upload & clean data via https://data-nconemap.opendata.arcgis.com/datasets/broadbandindices-bytract-allyears
+# via https://data-nconemap.opendata.arcgis.com/datasets/broadbandindices-bytract-allyears
 # all variables are percentages unless otherwise noted in names
 broadband <- read.csv("NC_Broadband_Indices.csv")
 broadband <- broadband %>% 
@@ -27,18 +27,18 @@ broadband <- broadband %>%
          limited_english = Percent_Lim__English, adoption_index = Adoption, year = YEAR) %>% 
   select(3, 9:32)
 
-# upload race data via American Community Survey
+# via American Community Survey
 nc_race <- read.csv("NC_Race.csv")
 broadband <- inner_join(broadband, nc_race) %>% 
   rename(pacific_islander = pacific.islander)
 
-# upload urban/rural data via U.S. Census Bureau
+# via U.S. Census Bureau
 nc_urban_rural <- read.csv("NC_Urban_Rural.csv")
 broadband <- inner_join(broadband, nc_urban_rural)
 broadband$pct_urban <- as.numeric(broadband$pct_urban)
 broadband$pct_rural <- as.numeric(broadband$pct_rural)
 
-# upload & clean data via https://docs.google.com/spreadsheets/d/1OUny4n_4ssCkCJDtFuHFWJ7jJkO1DfhbERl5_O1oDs0/edit#gid=1261416180
+# via https://docs.google.com/spreadsheets/d/1OUny4n_4ssCkCJDtFuHFWJ7jJkO1DfhbERl5_O1oDs0/edit#gid=1261416180
 dlmi <- read.csv("NC_Students_with_Internet_Access_at_Home.csv")
 dlmi <- dlmi %>% 
   mutate(Fiscal.Year = as.numeric(substring(Fiscal.Year, 1, 4))) %>% 
@@ -66,7 +66,7 @@ dlmi_range_2019 <- dlmi %>%
 dlmi <- rbind(dlmi_range_2015, dlmi_range_2019) %>% 
   arrange(name, year)
 
-# upload & clean data via http://apps.schools.nc.gov/ords/f?p=145:221:::NO:::
+# via http://apps.schools.nc.gov/ords/f?p=145:221:::NO:::
 ncdpi_race <- read.csv("NCDPI_Race.csv")
 ncdpi_race <- ncdpi_race %>% 
   mutate(LEA = as.character(LEA), School = as.character(School))
@@ -83,8 +83,23 @@ ncdpi_race <- ncdpi_race %>%
          bi_m = Two.or..More.Male, bi_f = Two.or..More.Female, total = Total) %>% 
   select(-LEA, -School)
 
+# economically disadvantaged & low performance via https://www.dpi.nc.gov/data-reports/school-report-cards/school-report-card-resources-researchers
+ncdpi_eds <- read.csv("NCDPI_EDS.csv")
+ncdpi_eds <- ncdpi_eds %>% 
+  filter(!is.na(as.numeric(agency_code))) %>% 
+  rename(number = agency_code) %>% 
+  select(-pct_eds_masking)
+
+ncdpi_low_perf <- read.csv("NCDPI_Low_Performance.csv")
+ncdpi_low_perf <- ncdpi_low_perf %>% 
+  filter(!is.na(as.numeric(agency_code))) %>% 
+  rename(number = agency_code, lp = lp_school, rlp = rlp_school) %>% 
+  select(year, number, lp, rlp)
+
 dlmi_2019 <- inner_join(dlmi_2019, ncdpi_race) %>% 
   mutate(access = as.numeric(access), total = as.numeric(gsub(",", "", total)))
+dlmi_2019 <- inner_join(dlmi_2019, ncdpi_eds)
+dlmi_2019 <- inner_join(dlmi_2019, ncdpi_low_perf)
 ```
 
 ```{r summary_statistics}
@@ -128,6 +143,9 @@ dlmi_inc_schools <- dlmi %>%
 dlmi %>% 
   filter(!name %in% dlmi_inc_schools$name & !is.na(access)) %>% 
   count(year, access)
+
+dlmi_2019 %>% 
+  count(lp)
 ```
 
 ```{r initial_viz}
@@ -186,6 +204,9 @@ dlmi %>%
 dlmi_2019 %>% 
   mutate(pct_black = (black_m + black_f) / total) %>% 
   ggplot(data = ., mapping = aes(x = pct_black, y = access)) +
+  geom_point(alpha = 0.25)
+
+ggplot(data = dlmi_2019, mapping = aes(x = pct_eds, y = access, color = lp)) +
   geom_point(alpha = 0.25)
 
 # in 2019-2020 school year, what is the relationship b/w broadband access & achievement?
