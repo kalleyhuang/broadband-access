@@ -135,17 +135,37 @@ broadband %>%
             mean_no_internet = mean(no_internet), mean_no_computer = mean(no_internet))
 
 # identify schools without observations for all five years
-dlmi_inc_schools <- dlmi %>% 
+dlmi %>% 
   count(name) %>% 
   filter(n != 5)
 
 # access by year
 dlmi %>% 
-  filter(!name %in% dlmi_inc_schools$name & !is.na(access)) %>% 
   count(year, access)
+```
 
-dlmi_2019 %>% 
-  count(lp)
+```{r analysis}
+# identify schools that experienced decrease in access from 2015 to 2019
+dlmi_decrease <- dlmi %>% 
+  filter(year == 2015 | year == 2019) %>% 
+  group_by(number) %>% 
+  pivot_wider(names_from = year, values_from = access) %>% 
+  filter(!is.na(`2015`) & !is.na(`2019`) & `2015` != `2019`) %>% 
+  filter(as.numeric(substring(`2015`, 1, 2)) > as.numeric(substring(`2019`, 1, 2)) | 
+           as.numeric(substring(`2019`, 1, 1)) == 0) %>% 
+  ungroup() %>% 
+  inner_join(., ncdpi_race) %>% 
+  select(-year)
+
+dlmi_decrease$`2019_actual` <- filter(dlmi_2019, number %in% dlmi_decrease$number)$access
+
+dlmi_decrease <- dlmi_decrease[, c(1:5, 22, 6:21)]
+
+dlmi_decrease %>% 
+  count(district)
+
+dlmi_decrease %>% 
+  count(level)
 ```
 
 ```{r initial_viz}
