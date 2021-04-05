@@ -12,6 +12,7 @@ library(tidyverse)
 ```
 
 ```{r data}
+# statewide broadband availability & adoption indices
 # via https://data-nconemap.opendata.arcgis.com/datasets/broadbandindices-bytract-allyears
 # all variables are percentages unless otherwise noted in names
 broadband <- read.csv("NC_Broadband_Indices.csv")
@@ -27,17 +28,20 @@ broadband <- broadband %>%
          limited_english = Percent_Lim__English, adoption_index = Adoption, year = YEAR) %>% 
   select(3, 9:32)
 
+# statewide race counts by census tract (2018)
 # via American Community Survey
 nc_race <- read.csv("NC_Race.csv")
 broadband <- inner_join(broadband, nc_race) %>% 
   rename(pacific_islander = pacific.islander)
 
+# statewide urban & rural percentages by census tract (2010)
 # via U.S. Census Bureau
 nc_urban_rural <- read.csv("NC_Urban_Rural.csv")
 broadband <- inner_join(broadband, nc_urban_rural)
 broadband$pct_urban <- as.numeric(broadband$pct_urban)
 broadband$pct_rural <- as.numeric(broadband$pct_rural)
 
+# statewide digital learning & media inventory by school (2015-2019)
 # via https://docs.google.com/spreadsheets/d/1OUny4n_4ssCkCJDtFuHFWJ7jJkO1DfhbERl5_O1oDs0/edit#gid=1261416180
 dlmi <- read.csv("NC_Students_with_Internet_Access_at_Home.csv")
 dlmi <- dlmi %>% 
@@ -50,22 +54,23 @@ dlmi$level[dlmi$level == "-"] <- NA
 dlmi <- dlmi %>% 
   arrange(name, year)
 
+# students with home internet access percentages (2019)
+# 25 schools have no data
 dlmi_2019 <- dlmi %>% 
-  filter(year == 2019) %>% 
-  filter(!is.na(as.numeric(number)))
+  filter(year == 2019)
 
+# students with home internet access percentage ranges (2015-2019)
 dlmi_range_2015 <- dlmi %>% 
   filter(year != 2019)
-
 dlmi_range_2019 <- dlmi %>% 
   filter(year == 2019) %>% 
   mutate(access = as.numeric(access)) %>% 
   mutate(access = case_when(access >= 0 & access <= 25 ~ "0-25", access > 25 & access <= 50 ~ "26-50",
                             access > 50 & access <= 75 ~ "51-75", access > 75 & access <= 100 ~ "76-100"))
-
 dlmi <- rbind(dlmi_range_2015, dlmi_range_2019) %>% 
   arrange(name, year)
 
+# statewide race & gender counts by school (2019)
 # via http://apps.schools.nc.gov/ords/f?p=145:221:::NO:::
 ncdpi_race <- read.csv("NCDPI_Race.csv")
 ncdpi_race <- ncdpi_race %>% 
@@ -83,13 +88,15 @@ ncdpi_race <- ncdpi_race %>%
          bi_m = Two.or..More.Male, bi_f = Two.or..More.Female, total = Total) %>% 
   select(-LEA, -School)
 
-# economically disadvantaged & low performance via https://www.dpi.nc.gov/data-reports/school-report-cards/school-report-card-resources-researchers
+# statewide economically disadvantaged percentages by school (2017-2019)
+# via https://www.dpi.nc.gov/data-reports/school-report-cards/school-report-card-resources-researchers
 ncdpi_eds <- read.csv("NCDPI_EDS.csv")
 ncdpi_eds <- ncdpi_eds %>% 
   filter(!is.na(as.numeric(agency_code))) %>% 
   rename(number = agency_code) %>% 
   select(-pct_eds_masking)
 
+# statewide (recurring) low performance designations by school (2018-2019)
 ncdpi_low_perf <- read.csv("NCDPI_Low_Performance.csv")
 ncdpi_low_perf <- ncdpi_low_perf %>% 
   filter(!is.na(as.numeric(agency_code))) %>% 
@@ -133,19 +140,20 @@ broadband %>%
   filter(!is.na(availability_index) & !is.na(adoption_index) & !is.na(no_internet) & !is.na(no_computer)) %>% 
   summarize(mean_availability = mean(availability_index), mean_adoption = mean(adoption_index),
             mean_no_internet = mean(no_internet), mean_no_computer = mean(no_internet))
+```
 
+```{r analysis}
 # identify schools without observations for all five years
 dlmi %>% 
   count(name) %>% 
   filter(n != 5)
 
-# access by year
+# count access by year
 dlmi %>% 
   count(year, access)
-```
 
-```{r analysis}
 # identify schools that experienced decrease in access from 2015 to 2019
+# 176 schools experienced such decrease
 dlmi_decrease <- dlmi %>% 
   filter(year == 2015 | year == 2019) %>% 
   group_by(number) %>% 
@@ -155,7 +163,8 @@ dlmi_decrease <- dlmi %>%
            as.numeric(substring(`2019`, 1, 1)) == 0) %>% 
   ungroup() %>% 
   inner_join(., ncdpi_race) %>% 
-  select(-year)
+  select(-year) %>% 
+  mutate(total = as.numeric(gsub(",", "", total)))
 
 dlmi_decrease$`2019_actual` <- filter(dlmi_2019, number %in% dlmi_decrease$number)$access
 
@@ -166,6 +175,45 @@ dlmi_decrease %>%
 
 dlmi_decrease %>% 
   count(level)
+
+# calculate access means & medians for state & each district (2019)
+# 83% mean, 89% median
+dlmi_2019 %>% 
+  summarize(mean = mean(access, na.rm = TRUE), median = median(access, na.rm = TRUE))
+
+dlmi_2019 %>% 
+  group_by(district) %>% 
+  summarize(mean = mean(access, na.rm = TRUE), median = median(access, na.rm = TRUE))
+
+# identify schools with below average access for state & that district (2019)
+# 824 schools were below state average 
+dlmi_2019 %>% 
+  filter(!is.na(access)) %>% 
+  filter(access < mean(access))
+# 851 schools were below district average
+dlmi_2019 %>%
+  filter(!is.na(access)) %>% 
+  group_by(district) %>% 
+  filter(access < mean(access))
+# 100 schools had below half with access
+dlmi_2019 %>%
+  filter(!is.na(access)) %>% 
+  group_by(district) %>% 
+  filter(access < 50)
+
+# calculate proportion of schools with below half access for each district
+dlmi_2019 %>% 
+  filter(!is.na(access)) %>% 
+  group_by(district) %>% 
+  mutate(below_half = access < 50) %>% 
+  count(below_half) %>% 
+  mutate(prop = n / sum(n)) %>% 
+  filter(below_half) %>% 
+  select(district, prop) %>% 
+  arrange(desc(prop))
+
+# which schools have the lowest percentage of broadband access?
+# what are the places that have seen the biggest change across years? what has that meant for the school district?
 ```
 
 ```{r initial_viz}
@@ -230,8 +278,6 @@ ggplot(data = dlmi_2019, mapping = aes(x = pct_eds, y = access, color = lp)) +
   geom_point(alpha = 0.25)
 
 # in 2019-2020 school year, what is the relationship b/w broadband access & achievement?
-# which schools have the lowest percentage of broadband access?
-# what are the places that have seen the biggest change across years? what has that meant for the school district?
 # peer-reviewed academic research on this -> has anybody already developed a methodology on impact of access?
 # have grants trickled down to the school? in addition to funding from legislature
 ```
