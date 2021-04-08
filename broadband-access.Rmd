@@ -55,7 +55,6 @@ dlmi <- dlmi %>%
   arrange(name, year)
 
 # students with home internet access percentages (2019)
-# 25 schools have no data
 dlmi_2019 <- dlmi %>% 
   filter(year == 2019)
 
@@ -126,6 +125,17 @@ broadband %>%
 broadband %>% 
   filter(is.na(availability_index) | is.na(adoption_index) | is.na(no_internet) | is.na(no_computer))
 
+dlmi %>% 
+  count(year, is.na(access))
+
+# identify schools without observations for all five years
+dlmi %>% 
+  count(name) %>% 
+  filter(n != 5)
+
+dlmi %>% 
+  count(year)
+
 # calculate summary statistics
 broadband %>% 
   filter(!is.na(availability_index) & !is.na(adoption_index) & !is.na(no_internet) & !is.na(no_computer)) %>% 
@@ -143,14 +153,17 @@ broadband %>%
 ```
 
 ```{r analysis}
-# identify schools without observations for all five years
-dlmi %>% 
-  count(name) %>% 
-  filter(n != 5)
-
 # count access by year
 dlmi %>% 
-  count(year, access)
+  count(year, access) %>% 
+  group_by(year) %>% 
+  mutate(prop = n / sum(n))
+
+# calculate proportion of low performing schools for each range
+filter(inner_join(dlmi, ncdpi_low_perf), year == 2019) %>% 
+  count(access, lp) %>% 
+  group_by(access) %>% 
+  mutate(prop = n / sum(n))
 
 # identify schools that experienced decrease in access from 2015 to 2019
 # 176 schools experienced such decrease
@@ -163,18 +176,27 @@ dlmi_decrease <- dlmi %>%
            as.numeric(substring(`2019`, 1, 1)) == 0) %>% 
   ungroup() %>% 
   inner_join(., ncdpi_race) %>% 
+  inner_join(., ncdpi_eds) %>% 
   select(-year) %>% 
   mutate(total = as.numeric(gsub(",", "", total)))
-
 dlmi_decrease$`2019_actual` <- filter(dlmi_2019, number %in% dlmi_decrease$number)$access
-
-dlmi_decrease <- dlmi_decrease[, c(1:5, 22, 6:21)]
+dlmi_decrease <- dlmi_decrease %>% 
+  mutate(`2019_low` = as.numeric(substring(`2015`, 1, 2)) - `2019_actual`,
+         `2019_high` = as.numeric(substring(`2015`, 4)) - `2019_actual`)
+dlmi_decrease <- dlmi_decrease[, c(1:5, 23:25, 6:22)]
 
 dlmi_decrease %>% 
   count(district)
-
 dlmi_decrease %>% 
   count(level)
+
+dlmi_decrease %>% 
+  count((total - white_m - white_f) / total >= 0.5)
+dlmi_decrease %>% 
+  count(pct_eds >= 50)
+
+dlmi_decrease %>% 
+  filter(`2019_low` >= 10)
 
 # calculate access means & medians for state & each district (2019)
 # 83% mean, 89% median
@@ -183,7 +205,8 @@ dlmi_2019 %>%
 
 dlmi_2019 %>% 
   group_by(district) %>% 
-  summarize(mean = mean(access, na.rm = TRUE), median = median(access, na.rm = TRUE))
+  summarize(mean = mean(access, na.rm = TRUE), median = median(access, na.rm = TRUE)) %>% 
+  arrange(mean)
 
 # identify schools with below average access for state & that district (2019)
 # 824 schools were below state average 
@@ -195,17 +218,20 @@ dlmi_2019 %>%
   filter(!is.na(access)) %>% 
   group_by(district) %>% 
   filter(access < mean(access))
-# 100 schools had below half with access
+# 155 schools had below half with access
 dlmi_2019 %>%
   filter(!is.na(access)) %>% 
   group_by(district) %>% 
-  filter(access < 50)
+  filter(access <= 50) %>% 
+  ungroup() %>% 
+  #count((total - white_m - white_f) / total >= 0.5)
+  count(pct_eds >= 50)
 
 # calculate proportion of schools with below half access for each district
 dlmi_2019 %>% 
   filter(!is.na(access)) %>% 
   group_by(district) %>% 
-  mutate(below_half = access < 50) %>% 
+  mutate(below_half = access <= 50) %>% 
   count(below_half) %>% 
   mutate(prop = n / sum(n)) %>% 
   filter(below_half) %>% 
@@ -263,7 +289,9 @@ broadband %>%
 
 # number of schools in each bucket from 2015 to 2019
 dlmi %>% 
-  filter(!name %in% dlmi_inc_schools$name) %>% 
+  group_by(name) %>% 
+  filter(n() == 5) %>% 
+  ungroup() %>% 
   count(year, access) %>% 
   filter(!is.na(access)) %>% 
   ggplot(data = ., mapping = aes(x = year, y = n, fill = access)) +
@@ -274,7 +302,9 @@ dlmi_2019 %>%
   ggplot(data = ., mapping = aes(x = pct_black, y = access)) +
   geom_point(alpha = 0.25)
 
-ggplot(data = dlmi_2019, mapping = aes(x = pct_eds, y = access, color = lp)) +
+dlmi_2019 %>% 
+  mutate(decrease = name %in% dlmi_decrease$name) %>% 
+  ggplot(data = ., mapping = aes(x = pct_eds, y = access, color = decrease)) +
   geom_point(alpha = 0.25)
 
 # in 2019-2020 school year, what is the relationship b/w broadband access & achievement?
