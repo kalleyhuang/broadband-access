@@ -105,11 +105,10 @@ ncdpi_low_perf <- ncdpi_low_perf %>%
 dlmi_2019 <- inner_join(dlmi_2019, ncdpi_race) %>% 
   mutate(access = as.numeric(access), total = as.numeric(gsub(",", "", total)))
 dlmi_2019 <- inner_join(dlmi_2019, ncdpi_eds)
-dlmi_2019 <- inner_join(dlmi_2019, ncdpi_low_perf)
 ```
 
 ```{r summary_statistics}
-# check missingness
+# check broadband access missingness
 broadband %>% 
   count(is.na(availability_index))
 
@@ -125,17 +124,6 @@ broadband %>%
 broadband %>% 
   filter(is.na(availability_index) | is.na(adoption_index) | is.na(no_internet) | is.na(no_computer))
 
-dlmi %>% 
-  count(year, is.na(access))
-
-# identify schools without observations for all five years
-dlmi %>% 
-  count(name) %>% 
-  filter(n != 5)
-
-dlmi %>% 
-  count(year)
-
 # calculate summary statistics
 broadband %>% 
   filter(!is.na(availability_index) & !is.na(adoption_index) & !is.na(no_internet) & !is.na(no_computer)) %>% 
@@ -150,6 +138,21 @@ broadband %>%
   filter(!is.na(availability_index) & !is.na(adoption_index) & !is.na(no_internet) & !is.na(no_computer)) %>% 
   summarize(mean_availability = mean(availability_index), mean_adoption = mean(adoption_index),
             mean_no_internet = mean(no_internet), mean_no_computer = mean(no_internet))
+
+# 91 schools missing access data
+dlmi %>% 
+  count(year, is.na(access))
+
+# 116 schools not included in DLMI
+anti_join(ncdpi_race, dlmi_2019, by = "number")
+
+# identify schools without observations for all five years
+dlmi %>% 
+  count(name) %>% 
+  filter(n != 5)
+
+dlmi %>% 
+  count(year)
 ```
 
 ```{r analysis}
@@ -224,8 +227,7 @@ dlmi_2019 %>%
   group_by(district) %>% 
   filter(access <= 50) %>% 
   ungroup() %>% 
-  #count((total - white_m - white_f) / total >= 0.5)
-  count(pct_eds >= 50)
+  count((total - white_m - white_f) / total >= 0.5, pct_eds >= 50)
 
 # calculate proportion of schools with below half access for each district
 dlmi_2019 %>% 
@@ -237,6 +239,36 @@ dlmi_2019 %>%
   filter(below_half) %>% 
   select(district, prop) %>% 
   arrange(desc(prop))
+
+# count number of schools with majority minority (1156/2236)
+# count number of majority minority schools with below average access (502/1156)
+# count number of majority white schools with below average access (322/1080)
+dlmi_2019 %>%
+  filter(!is.na(access)) %>% 
+  count((total - white_m - white_f) / total >= 0.5, access < mean(access))
+
+# count number of majority minority schools with less than half access (111/1156)
+# count number of majority white schools with less than half access (44/1080)
+dlmi_2019 %>%
+  filter(!is.na(access)) %>% 
+  count((total - white_m - white_f) / total >= 0.5, access <= 50)
+
+# count number of schools with majority economically disadvantaged "eds" (1250/2236)
+# count number of majority eds schools with below average access (587/1250)
+# count number of majority not eds with below average access (236/984)
+dlmi_2019 %>% 
+  filter(!is.na(access)) %>% 
+  count(pct_eds >= 50, access < mean(access))
+
+# count number of majority eds schools with less than half access (116/1250)
+# count number of majority not eds schools with less than half access (38/984)
+dlmi_2019 %>% 
+  filter(!is.na(access)) %>% 
+  count(pct_eds >= 50, access <= 50)
+
+dlmi_2019 %>% 
+  filter(!is.na(access)) %>% 
+  count((total - white_m - white_f) / total >= 0.5, pct_eds >= 50, access < mean(access))
 
 # which schools have the lowest percentage of broadband access?
 # what are the places that have seen the biggest change across years? what has that meant for the school district?
