@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 library(tidyverse)
 ```
 
-```{r data}
+```{r state_data}
 # statewide broadband availability & adoption indices
 # via https://data-nconemap.opendata.arcgis.com/datasets/broadbandindices-bytract-allyears
 # all variables are percentages unless otherwise noted in names
@@ -40,7 +40,9 @@ nc_urban_rural <- read.csv("NC_Urban_Rural.csv")
 broadband <- inner_join(broadband, nc_urban_rural)
 broadband$pct_urban <- as.numeric(broadband$pct_urban)
 broadband$pct_rural <- as.numeric(broadband$pct_rural)
+```
 
+```{r school_data}
 # statewide digital learning & media inventory by school (2015-2019)
 # via https://docs.google.com/spreadsheets/d/1OUny4n_4ssCkCJDtFuHFWJ7jJkO1DfhbERl5_O1oDs0/edit#gid=1261416180
 dlmi <- read.csv("NC_Students_with_Internet_Access_at_Home.csv")
@@ -59,6 +61,7 @@ dlmi_2019 <- dlmi %>%
   filter(year == 2019)
 
 # students with home internet access percentage ranges (2015-2019)
+# for multi year comparison
 dlmi_range_2015 <- dlmi %>% 
   filter(year != 2019)
 dlmi_range_2019 <- dlmi %>% 
@@ -102,12 +105,13 @@ ncdpi_low_perf <- ncdpi_low_perf %>%
   rename(number = agency_code, lp = lp_school, rlp = rlp_school) %>% 
   select(year, number, lp, rlp)
 
+# joining access and demographic datasets, losing 404 schools
 dlmi_2019 <- inner_join(dlmi_2019, ncdpi_race) %>% 
   mutate(access = as.numeric(access), total = as.numeric(gsub(",", "", total)))
 dlmi_2019 <- inner_join(dlmi_2019, ncdpi_eds)
 ```
 
-```{r summary_statistics}
+```{r state_summary_statistics}
 # check broadband access missingness
 broadband %>% 
   count(is.na(availability_index))
@@ -124,7 +128,7 @@ broadband %>%
 broadband %>% 
   filter(is.na(availability_index) | is.na(adoption_index) | is.na(no_internet) | is.na(no_computer))
 
-# calculate summary statistics
+# calculate broadband access summary statistics
 broadband %>% 
   filter(!is.na(availability_index) & !is.na(adoption_index) & !is.na(no_internet) & !is.na(no_computer)) %>% 
   summarize(median_availability = median(availability_index), mean_availability = mean(availability_index),
@@ -132,13 +136,15 @@ broadband %>%
             median_no_internet = median(no_internet), mean_no_internet = mean(no_internet),
             median_no_computer = median(no_internet), mean_no_computer = mean(no_internet))
 
-# availability & adoption by county & year
+# broadband availability & adoption by county & year
 broadband %>% 
   group_by(county, year) %>% 
   filter(!is.na(availability_index) & !is.na(adoption_index) & !is.na(no_internet) & !is.na(no_computer)) %>% 
   summarize(mean_availability = mean(availability_index), mean_adoption = mean(adoption_index),
             mean_no_internet = mean(no_internet), mean_no_computer = mean(no_internet))
+```
 
+```{r school_summary_statistics}
 # 91 schools missing access data
 dlmi %>% 
   count(year, is.na(access))
@@ -151,11 +157,18 @@ dlmi %>%
   count(name) %>% 
   filter(n != 5)
 
+# number of schools reporting DLMI inconsistent across five years
 dlmi %>% 
   count(year)
+
+# some districts do not report DLMI data at all
+dlmi_2019 %>% 
+  count(district)
+ncdpi_race %>% 
+  count(district)
 ```
 
-```{r analysis}
+```{r school_analysis}
 # count access by year
 dlmi %>% 
   count(year, access) %>% 
@@ -188,16 +201,19 @@ dlmi_decrease <- dlmi_decrease %>%
          `2019_high` = as.numeric(substring(`2015`, 4)) - `2019_actual`)
 dlmi_decrease <- dlmi_decrease[, c(1:5, 23:25, 6:22)]
 
+# count number of districts and school types experiencing decrease
 dlmi_decrease %>% 
   count(district)
 dlmi_decrease %>% 
   count(level)
 
+# count number of schools experiencing decrease which are majority minority or eds
 dlmi_decrease %>% 
   count((total - white_m - white_f) / total >= 0.5)
 dlmi_decrease %>% 
   count(pct_eds >= 50)
 
+# count number of schools experiencing at least 10% decrease
 dlmi_decrease %>% 
   filter(`2019_low` >= 10)
 
@@ -230,14 +246,15 @@ dlmi_2019 %>%
   count((total - white_m - white_f) / total >= 0.5, pct_eds >= 50)
 
 # calculate proportion of schools with below half access for each district
-dlmi_2019 %>% 
+dlmi_2019_prop <- dlmi_2019 %>% 
   filter(!is.na(access)) %>% 
   group_by(district) %>% 
-  mutate(below_half = access <= 50) %>% 
-  count(below_half) %>% 
-  mutate(prop = n / sum(n)) %>% 
-  filter(below_half) %>% 
-  select(district, prop) %>% 
+  count(access <= 50) %>% 
+  filter(`access <= 50`)
+dlmi_2019_prop$sum <- filter(count(ncdpi_race, vars = district), vars %in% dlmi_2019_prop$district)$n
+dlmi_2019_prop <- dlmi_2019_prop %>% 
+  mutate(prop = n / sum) %>% 
+  select(district, n, sum, prop) %>% 
   arrange(desc(prop))
 
 # count number of schools with majority minority (1156/2236)
@@ -266,15 +283,13 @@ dlmi_2019 %>%
   filter(!is.na(access)) %>% 
   count(pct_eds >= 50, access <= 50)
 
+# count number of majority minority and eds schools with below average access (416)
 dlmi_2019 %>% 
   filter(!is.na(access)) %>% 
   count((total - white_m - white_f) / total >= 0.5, pct_eds >= 50, access < mean(access))
-
-# which schools have the lowest percentage of broadband access?
-# what are the places that have seen the biggest change across years? what has that meant for the school district?
 ```
 
-```{r initial_viz}
+```{r state_viz}
 ggplot(data = broadband, mapping = aes(x = poverty, y = availability_index)) +
   geom_point(mapping = aes(color = pct_urban), alpha = 0.25)
 
@@ -318,7 +333,9 @@ broadband %>%
   mutate(pct_black = black / total) %>% 
   ggplot(data = ., mapping = aes(x = pct_black, y = no_computer)) +
   geom_point(alpha = 0.25)
+```
 
+```{r school_viz}
 # number of schools in each bucket from 2015 to 2019
 dlmi %>% 
   group_by(name) %>% 
@@ -327,19 +344,22 @@ dlmi %>%
   count(year, access) %>% 
   filter(!is.na(access)) %>% 
   ggplot(data = ., mapping = aes(x = year, y = n, fill = access)) +
-  geom_bar(position = "dodge", stat = "identity")
+  geom_bar(position = "dodge", stat = "identity") +
+  labs(x = "Year", y = "Number", fill = "Percent with\nHome Internet\nAccess") +
+  theme_classic()
 
+# race & access
 dlmi_2019 %>% 
-  mutate(pct_black = (black_m + black_f) / total) %>% 
-  ggplot(data = ., mapping = aes(x = pct_black, y = access)) +
-  geom_point(alpha = 0.25)
+  mutate(pct_min = (total - white_m - white_f) / total * 100) %>% 
+  ggplot(data = ., mapping = aes(x = pct_min, y = access)) +
+  geom_point(alpha = 0.25) +
+  labs(x = "Percent Minority", y = "Percent with Home Internet Access") +
+  theme_classic()
 
-dlmi_2019 %>% 
-  mutate(decrease = name %in% dlmi_decrease$name) %>% 
-  ggplot(data = ., mapping = aes(x = pct_eds, y = access, color = decrease)) +
-  geom_point(alpha = 0.25)
-
-# in 2019-2020 school year, what is the relationship b/w broadband access & achievement?
-# peer-reviewed academic research on this -> has anybody already developed a methodology on impact of access?
-# have grants trickled down to the school? in addition to funding from legislature
+# economic disadvantage & access
+ggplot(data = dlmi_2019, mapping = aes(x = pct_eds, y = access)) +
+  geom_point(alpha = 0.25) +
+  labs(x = "Percent Economically Disadvantaged", y = "Percent with Home Internet Access") +
+  scale_x_continuous(limits = c(0, 100)) +
+  theme_classic()
 ```
