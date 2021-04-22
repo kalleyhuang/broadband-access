@@ -13,7 +13,7 @@ library(here)
 ```
 
 ```{r data}
-# statewide digital learning & media inventory by school (2015-2019)
+# percent students with Internet access at home, at school level (2015-2019)
 # via https://docs.google.com/spreadsheets/d/1OUny4n_4ssCkCJDtFuHFWJ7jJkO1DfhbERl5_O1oDs0/edit#gid=1261416180
 dlmi <- read.csv(here("data", "NC_Students_with_Internet_Access_at_Home.csv"))
 dlmi <- dlmi %>% 
@@ -26,11 +26,11 @@ dlmi$level[dlmi$level == "-"] <- NA
 dlmi <- dlmi %>% 
   arrange(name, year)
 
-# students with home internet access percentages (2019)
+# percent students with Internet access at home, at school level, by percentages (2019)
 dlmi_2019 <- dlmi %>% 
   filter(year == 2019)
 
-# students with home internet access percentage ranges (2015-2019)
+# percent students with Internet access at home, at school level, by percentage ranges (2015-2019)
 # for multi year comparison
 dlmi_range_2015 <- dlmi %>% 
   filter(year != 2019)
@@ -42,8 +42,7 @@ dlmi_range_2019 <- dlmi %>%
 dlmi <- rbind(dlmi_range_2015, dlmi_range_2019) %>% 
   arrange(name, year)
 
-# statewide race & gender counts by school (2019)
-# via http://apps.schools.nc.gov/ords/f?p=145:221:::NO:::
+# number of students by race and sex, at school level (2019)
 ncdpi_race <- read.csv(here("data", "NCDPI_Race.csv"))
 ncdpi_race <- ncdpi_race %>% 
   mutate(LEA = as.character(LEA), School = as.character(School))
@@ -60,15 +59,14 @@ ncdpi_race <- ncdpi_race %>%
          bi_m = Two.or..More.Male, bi_f = Two.or..More.Female, total = Total) %>% 
   select(-LEA, -School)
 
-# statewide economically disadvantaged percentages by school (2017-2019)
-# via https://www.dpi.nc.gov/data-reports/school-report-cards/school-report-card-resources-researchers
+# percent economically disadvantaged students, at school level (2017-2019)
 ncdpi_eds <- read.csv(here("data", "NCDPI_EDS.csv"))
 ncdpi_eds <- ncdpi_eds %>% 
   filter(!is.na(as.numeric(agency_code))) %>% 
   rename(number = agency_code) %>% 
   select(-pct_eds_masking)
 
-# statewide (recurring) low performance designations by school (2018-2019)
+# (recurring) low performance designations, at school level (2018-2019)
 ncdpi_low_perf <- read.csv(here("data", "NCDPI_Low_Performance.csv"))
 ncdpi_low_perf <- ncdpi_low_perf %>% 
   filter(!is.na(as.numeric(agency_code))) %>% 
