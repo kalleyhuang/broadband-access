@@ -363,3 +363,26 @@ ggplot(data = dlmi_2019, mapping = aes(x = pct_eds, y = access)) +
   scale_x_continuous(limits = c(0, 100)) +
   theme_classic()
 ```
+
+```{r peer_analysis}
+dlmi_peer <- dlmi_2019 %>% 
+  mutate(pct_eds = pct_eds / 100) %>% 
+  mutate(pct_min = (total - white_m - white_f) / total) %>% 
+  filter(!is.na(access) & !is.na(pct_eds) & !is.na(pct_min))
+
+below_half <- dlmi_peer %>%
+  group_by(district) %>%  
+  arrange(access, .by_group = T) %>% 
+  select(name, level, access, district, total, pct_eds, pct_min) %>% 
+  filter(access <= 50)
+
+for (i in 1:nrow(below_half)) {
+  print(dlmi_peer %>% 
+          filter(district == below_half[i,]$district & level == below_half[i,]$level, 
+                 total > below_half[i,]$total - 50, total < below_half[i,]$total + 50,
+                 pct_eds > below_half[i,]$pct_eds - 0.05, pct_eds < below_half[i,]$pct_eds + 0.05,
+                 pct_min > below_half[i,]$pct_min - 0.05, pct_min < below_half[i,]$pct_min + 0.05) %>% 
+          select(name, access, district, level, total, pct_eds, pct_min) %>% 
+          arrange(access))
+}
+```
