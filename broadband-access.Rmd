@@ -12,38 +12,7 @@ library(tidyverse)
 library(here)
 ```
 
-```{r state_data}
-# statewide broadband availability & adoption indices
-# via https://data-nconemap.opendata.arcgis.com/datasets/broadbandindices-bytract-allyears
-# all variables are percentages unless otherwise noted in names
-broadband <- read.csv(here("data", "NC_Broadband_Indices.csv"))
-broadband <- broadband %>% 
-  rename(tract = NAMELSAD, fips = FIPS, county = County_Name, `25/3` = Percent_Pop__25_3, 
-         `100/20` = Percent_Pop__100_20, fiber = Percent_Pop__Fiber, upload_download_ratio = Up_Down_Ratio, 
-         household_density = Hhld__Density, homes_after_2010 = Percent_Age_Home, 
-         no_providers = Percent_Pop__No_Prov_, dsl = Percent_Pop__DSL_Only, availability_index = Availability, 
-         subscription = Percent_Bbnd__Sub, `18-34` = Percent_Ages_18_34, bachelors = Percent_Bach_, 
-         household_with_children = Percent_Hhlds__Children, wfh = Percent_Work_from_home,
-         `65+` = Percent_Ages_65_and_over, no_internet = Percent_No_Int__Access, 
-         no_computer = Percent_No_Comp__Devices, poverty = Percent_Poverty, disability = Percent_Disability, 
-         limited_english = Percent_Lim__English, adoption_index = Adoption, year = YEAR) %>% 
-  select(3, 9:32)
-
-# statewide race counts by census tract (2018)
-# via American Community Survey
-nc_race <- read.csv(here("data", "NC_Race.csv"))
-broadband <- inner_join(broadband, nc_race) %>% 
-  rename(pacific_islander = pacific.islander)
-
-# statewide urban & rural percentages by census tract (2010)
-# via U.S. Census Bureau
-nc_urban_rural <- read.csv(here("data", "NC_Urban_Rural.csv"))
-broadband <- inner_join(broadband, nc_urban_rural)
-broadband$pct_urban <- as.numeric(broadband$pct_urban)
-broadband$pct_rural <- as.numeric(broadband$pct_rural)
-```
-
-```{r school_data}
+```{r data}
 # statewide digital learning & media inventory by school (2015-2019)
 # via https://docs.google.com/spreadsheets/d/1OUny4n_4ssCkCJDtFuHFWJ7jJkO1DfhbERl5_O1oDs0/edit#gid=1261416180
 dlmi <- read.csv(here("data", "NC_Students_with_Internet_Access_at_Home.csv"))
@@ -112,40 +81,7 @@ dlmi_2019 <- inner_join(dlmi_2019, ncdpi_race) %>%
 dlmi_2019 <- inner_join(dlmi_2019, ncdpi_eds)
 ```
 
-```{r state_summary_statistics}
-# check broadband access missingness
-broadband %>% 
-  count(is.na(availability_index))
-
-broadband %>% 
-  count(is.na(adoption_index))
-
-broadband %>% 
-  count(is.na(no_internet))
-
-broadband %>% 
-  count(is.na(no_computer))
-
-broadband %>% 
-  filter(is.na(availability_index) | is.na(adoption_index) | is.na(no_internet) | is.na(no_computer))
-
-# calculate broadband access summary statistics
-broadband %>% 
-  filter(!is.na(availability_index) & !is.na(adoption_index) & !is.na(no_internet) & !is.na(no_computer)) %>% 
-  summarize(median_availability = median(availability_index), mean_availability = mean(availability_index),
-            median_adoption = median(adoption_index), mean_adoption = mean(adoption_index),
-            median_no_internet = median(no_internet), mean_no_internet = mean(no_internet),
-            median_no_computer = median(no_internet), mean_no_computer = mean(no_internet))
-
-# broadband availability & adoption by county & year
-broadband %>% 
-  group_by(county, year) %>% 
-  filter(!is.na(availability_index) & !is.na(adoption_index) & !is.na(no_internet) & !is.na(no_computer)) %>% 
-  summarize(mean_availability = mean(availability_index), mean_adoption = mean(adoption_index),
-            mean_no_internet = mean(no_internet), mean_no_computer = mean(no_internet))
-```
-
-```{r school_summary_statistics}
+```{r summary_statistics}
 # 91 schools missing access data
 dlmi %>% 
   count(year, is.na(access))
@@ -169,7 +105,7 @@ ncdpi_race %>%
   count(district)
 ```
 
-```{r school_analysis}
+```{r analysis}
 # count access by year
 dlmi %>% 
   count(year, access) %>% 
@@ -290,53 +226,7 @@ dlmi_2019 %>%
   count((total - white_m - white_f) / total >= 0.5, pct_eds >= 50, access < mean(access))
 ```
 
-```{r state_viz}
-ggplot(data = broadband, mapping = aes(x = poverty, y = availability_index)) +
-  geom_point(mapping = aes(color = pct_urban), alpha = 0.25)
-
-ggplot(data = broadband, mapping = aes(x = poverty, y = adoption_index)) +
-  geom_point(mapping = aes(color = pct_urban), alpha = 0.25)
-
-ggplot(data = broadband, mapping = aes(x = poverty, y = no_internet)) +
-  geom_point(mapping = aes(color = pct_urban), alpha = 0.25)
-
-ggplot(data = broadband, mapping = aes(x = poverty, y = no_computer)) +
-  geom_point(mapping = aes(color = pct_urban), alpha = 0.25)
-
-ggplot(data = broadband, mapping = aes(x = household_with_children, y = availability_index)) +
-  geom_point(alpha = 0.25)
-
-ggplot(data = broadband, mapping = aes(x = household_with_children, y = adoption_index)) +
-  geom_point(alpha = 0.25)
-
-ggplot(data = broadband, mapping = aes(x = household_with_children, y = no_internet)) +
-  geom_point(alpha = 0.25)
-
-ggplot(data = broadband, mapping = aes(x = household_with_children, y = no_computer)) +
-  geom_point(alpha = 0.25)
-
-broadband %>% 
-  mutate(pct_black = black / total) %>% 
-  ggplot(data = ., mapping = aes(x = pct_black, y = availability_index)) +
-  geom_point(alpha = 0.25)
-
-broadband %>% 
-  mutate(pct_black = black / total) %>% 
-  ggplot(data = ., mapping = aes(x = pct_black, y = adoption_index)) +
-  geom_point(alpha = 0.25)
-
-broadband %>% 
-  mutate(pct_black = black / total) %>% 
-  ggplot(data = ., mapping = aes(x = pct_black, y = no_internet)) +
-  geom_point(alpha = 0.25)
-
-broadband %>% 
-  mutate(pct_black = black / total) %>% 
-  ggplot(data = ., mapping = aes(x = pct_black, y = no_computer)) +
-  geom_point(alpha = 0.25)
-```
-
-```{r school_viz}
+```{r viz}
 # number of schools in each bucket from 2015 to 2019
 dlmi %>% 
   group_by(name) %>% 
