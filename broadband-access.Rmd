@@ -234,6 +234,7 @@ dlmi %>%
   filter(!is.na(access)) %>% 
   ggplot(data = ., mapping = aes(x = year, y = n, fill = access)) +
   geom_bar(position = "dodge", stat = "identity") +
+  scale_fill_viridis_d() +
   labs(x = "Year", y = "Number", fill = "Percent with\nHome Internet\nAccess") +
   theme_classic()
 
