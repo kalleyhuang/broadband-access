@@ -255,24 +255,41 @@ ggplot(data = dlmi_2019, mapping = aes(x = pct_eds, y = access)) +
 ```
 
 ```{r peer_analysis}
-dlmi_peer <- dlmi_2019 %>% 
-  mutate(pct_eds = pct_eds / 100) %>% 
-  mutate(pct_min = (total - white_m - white_f) / total) %>% 
-  filter(!is.na(access) & !is.na(pct_eds) & !is.na(pct_min))
-
-below_half <- dlmi_peer %>%
+below_half <- dlmi_2019 %>%
   group_by(district) %>%  
   arrange(access, .by_group = T) %>% 
-  select(name, level, access, district, total, pct_eds, pct_min) %>% 
-  filter(access <= 50)
+  filter(access <= 50) %>% 
+  ungroup() %>% 
+  mutate(access = access / 100, 
+         pct_eds = pct_eds / 100, 
+         pct_min = (total - white_m - white_f) / total) %>% 
+  filter(!is.na(access) & !is.na(pct_eds) & !is.na(pct_min)) %>% 
+  mutate(group = row_number(), diff = 0)
 
-for (i in 1:nrow(below_half)) {
-  print(dlmi_peer %>% 
-          filter(district == below_half[i,]$district & level == below_half[i,]$level, 
-                 total > below_half[i,]$total - 50, total < below_half[i,]$total + 50,
-                 pct_eds > below_half[i,]$pct_eds - 0.05, pct_eds < below_half[i,]$pct_eds + 0.05,
-                 pct_min > below_half[i,]$pct_min - 0.05, pct_min < below_half[i,]$pct_min + 0.05) %>% 
-          select(name, access, district, level, total, pct_eds, pct_min) %>% 
-          arrange(access))
+dlmi_peers <- below_half[1,] 
+
+for (i in 2:nrow(below_half)) {
+  school <- below_half[i,]
+  peers <- dlmi_2019 %>% 
+    mutate(access = access / 100, 
+           pct_eds = pct_eds / 100,
+           pct_min = (total - white_m - white_f) / total) %>% 
+    filter(!is.na(access) & !is.na(pct_eds) & !is.na(pct_min)) %>% 
+    filter(district == school$district & level == school$level, 
+           total > school$total - 50, total < school$total + 50,
+           pct_eds > school$pct_eds - 0.05, pct_eds < school$pct_eds + 0.05,
+           pct_min > school$pct_min - 0.05, pct_min < school$pct_min + 0.05) %>% 
+    arrange(access) %>% 
+    filter(name != school$name, !name %in% dlmi_peers$name) %>%
+    mutate(group = school$group, diff = access - school$access)
+  dlmi_peers <- bind_rows(dlmi_peers, school, peers)
 }
+
+dlmi_peers <- dlmi_peers %>% 
+  group_by(name) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  group_by(group) %>% 
+  arrange(group, access) %>% 
+  inner_join(., ncdpi_low_perf)
 ```
